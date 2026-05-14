@@ -8,7 +8,8 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/rainbowmga/timetravel/api"
-	"github.com/rainbowmga/timetravel/service"
+	"github.com/rainbowmga/timetravel/database"
+	svc "github.com/rainbowmga/timetravel/service"
 )
 
 // logError logs all non-nil errors
@@ -21,7 +22,14 @@ func logError(err error) {
 func main() {
 	router := mux.NewRouter()
 
-	service := service.NewInMemoryRecordService()
+	//service := service.NewInMemoryRecordService()
+
+	db, err := database.NewSQLiteDB("records.db")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	service := svc.NewSQLiteRecordService(db)
 	api := api.NewAPI(&service)
 
 	apiRoute := router.PathPrefix("/api/v1").Subrouter()

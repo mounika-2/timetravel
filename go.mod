@@ -1,5 +1,7 @@
 module github.com/rainbowmga/timetravel
 
-go 1.17
+go 1.21
 
 require github.com/gorilla/mux v1.8.0
+
+require github.com/mattn/go-sqlite3 v1.14.44 // indirect
