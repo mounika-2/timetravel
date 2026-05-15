@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/rainbowmga/timetravel/api"
 	"github.com/rainbowmga/timetravel/database"
@@ -50,5 +51,13 @@ func main() {
 	}
 
 	log.Printf("listening on %s", address)
+	corsHandler := handlers.CORS(
+		handlers.AllowedOrigins([]string{"*"}),
+		handlers.AllowedMethods([]string{"GET", "POST", "OPTIONS"}),
+		handlers.AllowedHeaders([]string{"Content-Type"}),
+	)
+
+	srv.Handler = corsHandler(router)
+
 	log.Fatal(srv.ListenAndServe())
 }
