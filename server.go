@@ -33,6 +33,8 @@ func main() {
 	api := api.NewAPI(&service)
 
 	apiRoute := router.PathPrefix("/api/v1").Subrouter()
+	apiV2Route := router.PathPrefix("/api/v2").Subrouter()
+	api.CreateRoutes(apiV2Route)
 	apiRoute.Path("/health").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		err := json.NewEncoder(w).Encode(map[string]bool{"ok": true})
 		logError(err)

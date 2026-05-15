@@ -27,6 +27,12 @@ type RecordService interface {
 	//
 	// UpdateRecord will error if id <= 0 or the record does not exist with that id.
 	UpdateRecord(ctx context.Context, id int, updates map[string]*string) (entity.Record, error)
+
+	// GetRecordVersion will retrieve a specific version of a record.
+	GetRecordVersion(ctx context.Context, id int, version int) (entity.RecordVersion, error)
+
+	// ListRecordVersions will retrieve all versions of a record.
+	ListRecordVersions(ctx context.Context, id int) ([]entity.RecordVersion, error)
 }
 
 // InMemoryRecordService is an in-memory implementation of RecordService.

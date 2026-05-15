@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"time"
 
 	"github.com/rainbowmga/timetravel/entity"
 )
@@ -26,8 +27,10 @@ func (s *SQLiteRecordService) GetRecord(
 
 	query := `
 	SELECT data
-	FROM records
-	WHERE id = ?
+	FROM record_versions
+	WHERE record_id = ?
+	ORDER BY version DESC
+	LIMIT 1
 	`
 
 	var rawJSON string
@@ -59,29 +62,139 @@ func (s *SQLiteRecordService) GetRecord(
 	}, nil
 }
 
+func (s *SQLiteRecordService) GetRecordVersion(
+	ctx context.Context,
+	id int,
+	version int,
+) (entity.RecordVersion, error) {
+
+	query := `
+	SELECT data, created_at
+	FROM record_versions
+	WHERE record_id = ?
+	AND version = ?
+	`
+
+	var rawJSON string
+	var createdAt time.Time
+
+	err := s.db.QueryRowContext(
+		ctx,
+		query,
+		id,
+		version,
+	).Scan(&rawJSON, &createdAt)
+
+	if errors.Is(err, sql.ErrNoRows) {
+		return entity.RecordVersion{}, ErrRecordDoesNotExist
+	}
+
+	if err != nil {
+		return entity.RecordVersion{}, err
+	}
+
+	data := map[string]string{}
+
+	err = json.Unmarshal([]byte(rawJSON), &data)
+	if err != nil {
+		return entity.RecordVersion{}, err
+	}
+
+	return entity.RecordVersion{
+		RecordID:  id,
+		Version:   version,
+		Data:      data,
+		CreatedAt: createdAt,
+	}, nil
+}
+
 func (s *SQLiteRecordService) CreateRecord(
 	ctx context.Context,
 	record entity.Record,
 ) error {
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+
+	defer tx.Rollback()
+
+	now := time.Now().UTC()
+
+	_, err = tx.ExecContext(
+		ctx,
+		`
+		INSERT INTO records(id, created_at)
+		VALUES(?, ?)
+		`,
+		record.ID,
+		now,
+	)
+
+	if err != nil {
+		return err
+	}
 
 	rawJSON, err := json.Marshal(record.Data)
 	if err != nil {
 		return err
 	}
 
-	query := `
-	INSERT INTO records(id, data)
-	VALUES(?, ?)
-	`
-
-	_, err = s.db.ExecContext(
+	_, err = tx.ExecContext(
 		ctx,
-		query,
+		`
+		INSERT INTO record_versions(
+			record_id,
+			version,
+			data,
+			created_at
+		)
+		VALUES(?, ?, ?, ?)
+		`,
 		record.ID,
+		1,
 		string(rawJSON),
+		now,
 	)
 
-	return err
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+func (s *SQLiteRecordService) getLatestVersion(
+	ctx context.Context,
+	recordID int,
+) (int, error) {
+
+	query := `
+	SELECT version
+	FROM record_versions
+	WHERE record_id = ?
+	ORDER BY version DESC
+	LIMIT 1
+	`
+
+	var version int
+
+	err := s.db.QueryRowContext(
+		ctx,
+		query,
+		recordID,
+	).Scan(&version)
+
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, ErrRecordDoesNotExist
+	}
+
+	if err != nil {
+		return 0, err
+	}
+
+	return version, nil
 }
 
 func (s *SQLiteRecordService) UpdateRecord(
@@ -107,22 +220,31 @@ func (s *SQLiteRecordService) UpdateRecord(
 		newRecord.Data[key] = *value
 	}
 
+	latestVersion, err := s.getLatestVersion(ctx, id)
+	if err != nil {
+		return entity.Record{}, err
+	}
+
 	rawJSON, err := json.Marshal(newRecord.Data)
 	if err != nil {
 		return entity.Record{}, err
 	}
 
-	query := `
-	UPDATE records
-	SET data = ?
-	WHERE id = ?
-	`
-
 	_, err = s.db.ExecContext(
 		ctx,
-		query,
-		string(rawJSON),
+		`
+		INSERT INTO record_versions(
+			record_id,
+			version,
+			data,
+			created_at
+		)
+		VALUES(?, ?, ?, ?)
+		`,
 		id,
+		latestVersion+1,
+		string(rawJSON),
+		time.Now().UTC(),
 	)
 
 	if err != nil {
@@ -130,4 +252,61 @@ func (s *SQLiteRecordService) UpdateRecord(
 	}
 
 	return newRecord, nil
+}
+
+func (s *SQLiteRecordService) ListRecordVersions(
+	ctx context.Context,
+	id int,
+) ([]entity.RecordVersion, error) {
+
+	query := `
+	SELECT version, data, created_at
+	FROM record_versions
+	WHERE record_id = ?
+	ORDER BY version ASC
+	`
+
+	rows, err := s.db.QueryContext(
+		ctx,
+		query,
+		id,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	versions := []entity.RecordVersion{}
+
+	for rows.Next() {
+
+		var version entity.RecordVersion
+		var rawJSON string
+
+		err := rows.Scan(
+			&version.Version,
+			&rawJSON,
+			&version.CreatedAt,
+		)
+
+		if err != nil {
+			return nil, err
+		}
+
+		data := map[string]string{}
+
+		err = json.Unmarshal([]byte(rawJSON), &data)
+		if err != nil {
+			return nil, err
+		}
+
+		version.RecordID = id
+		version.Data = data
+
+		versions = append(versions, version)
+	}
+
+	return versions, nil
 }
