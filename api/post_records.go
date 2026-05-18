@@ -2,70 +2,96 @@ package api
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 	"strconv"
 
 	"github.com/gorilla/mux"
 	"github.com/rainbowmga/timetravel/entity"
-	"github.com/rainbowmga/timetravel/service"
 )
 
 // POST /records/{id}
 // if the record exists, the record is updated.
 // if the record doesn't exist, the record is created.
-func (a *API) PostRecords(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	id := mux.Vars(r)["id"]
-	idNumber, err := strconv.ParseInt(id, 10, 32)
+func (a *API) PostRecords(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
 
-	if err != nil || idNumber <= 0 {
-		err := writeError(w, "invalid id; id must be a positive number", http.StatusBadRequest)
-		logError(err)
-		return
-	}
+	vars := mux.Vars(r)
 
-	var body map[string]*string
-	err = json.NewDecoder(r.Body).Decode(&body)
-
+	id, err := strconv.Atoi(vars["id"])
 	if err != nil {
-		err := writeError(w, "invalid input; could not parse json", http.StatusBadRequest)
-		logError(err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	// first retrieve the record
-	record, err := a.records.GetRecord(
+	var payload map[string]string
+
+	err = json.NewDecoder(r.Body).Decode(&payload)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	ctx := r.Context()
+
+	// check if record exists
+	_, err = a.records.GetRecord(ctx, id)
+
+	// RECORD DOES NOT EXIST -> CREATE
+	if err != nil {
+
+		record := entity.Record{
+			ID:   id,
+			Data: payload,
+		}
+
+		err = a.records.CreateRecord(ctx, record)
+		if err != nil {
+			http.Error(
+				w,
+				err.Error(),
+				http.StatusInternalServerError,
+			)
+			return
+		}
+
+		w.Header().Set(
+			"Content-Type",
+			"application/json",
+		)
+
+		json.NewEncoder(w).Encode(record)
+		return
+	}
+
+	// RECORD EXISTS -> UPDATE
+	updates := map[string]*string{}
+
+	for key, value := range payload {
+		v := value
+		updates[key] = &v
+	}
+
+	record, err := a.records.UpdateRecord(
 		ctx,
-		int(idNumber),
+		id,
+		updates,
 	)
 
-	if !errors.Is(err, service.ErrRecordDoesNotExist) { // record exists
-		record, err = a.records.UpdateRecord(ctx, int(idNumber), body)
-	} else { // record does not exist
-
-		// exclude the delete updates
-		recordMap := map[string]string{}
-		for key, value := range body {
-			if value != nil {
-				recordMap[key] = *value
-			}
-		}
-
-		record = entity.Record{
-			ID:   int(idNumber),
-			Data: recordMap,
-		}
-		err = a.records.CreateRecord(ctx, record)
-	}
-
 	if err != nil {
-		errInWriting := writeError(w, ErrInternal.Error(), http.StatusInternalServerError)
-		logError(err)
-		logError(errInWriting)
+		http.Error(
+			w,
+			err.Error(),
+			http.StatusInternalServerError,
+		)
 		return
 	}
 
-	err = writeJSON(w, record, http.StatusOK)
-	logError(err)
+	w.Header().Set(
+		"Content-Type",
+		"application/json",
+	)
+
+	json.NewEncoder(w).Encode(record)
 }

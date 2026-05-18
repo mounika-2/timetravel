@@ -4,8 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
-	"time"
 
 	"github.com/rainbowmga/timetravel/entity"
 )
@@ -27,10 +25,8 @@ func (s *SQLiteRecordService) GetRecord(
 
 	query := `
 	SELECT data
-	FROM record_versions
-	WHERE record_id = ?
-	ORDER BY version DESC
-	LIMIT 1
+	FROM records
+	WHERE id = ?
 	`
 
 	var rawJSON string
@@ -41,7 +37,7 @@ func (s *SQLiteRecordService) GetRecord(
 		id,
 	).Scan(&rawJSON)
 
-	if errors.Is(err, sql.ErrNoRows) {
+	if err == sql.ErrNoRows {
 		return entity.Record{}, ErrRecordDoesNotExist
 	}
 
@@ -62,139 +58,33 @@ func (s *SQLiteRecordService) GetRecord(
 	}, nil
 }
 
-func (s *SQLiteRecordService) GetRecordVersion(
-	ctx context.Context,
-	id int,
-	version int,
-) (entity.RecordVersion, error) {
-
-	query := `
-	SELECT data, created_at
-	FROM record_versions
-	WHERE record_id = ?
-	AND version = ?
-	`
-
-	var rawJSON string
-	var createdAt time.Time
-
-	err := s.db.QueryRowContext(
-		ctx,
-		query,
-		id,
-		version,
-	).Scan(&rawJSON, &createdAt)
-
-	if errors.Is(err, sql.ErrNoRows) {
-		return entity.RecordVersion{}, ErrRecordDoesNotExist
-	}
-
-	if err != nil {
-		return entity.RecordVersion{}, err
-	}
-
-	data := map[string]string{}
-
-	err = json.Unmarshal([]byte(rawJSON), &data)
-	if err != nil {
-		return entity.RecordVersion{}, err
-	}
-
-	return entity.RecordVersion{
-		RecordID:  id,
-		Version:   version,
-		Data:      data,
-		CreatedAt: createdAt,
-	}, nil
-}
-
 func (s *SQLiteRecordService) CreateRecord(
 	ctx context.Context,
 	record entity.Record,
 ) error {
-
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-
-	defer tx.Rollback()
-
-	now := time.Now().UTC()
-
-	_, err = tx.ExecContext(
-		ctx,
-		`
-		INSERT INTO records(id, created_at)
-		VALUES(?, ?)
-		`,
-		record.ID,
-		now,
-	)
-
-	if err != nil {
-		return err
-	}
 
 	rawJSON, err := json.Marshal(record.Data)
 	if err != nil {
 		return err
 	}
 
-	_, err = tx.ExecContext(
+	query := `
+	INSERT INTO records(id, data)
+	VALUES(?, ?)
+	`
+
+	_, err = s.db.ExecContext(
 		ctx,
-		`
-		INSERT INTO record_versions(
-			record_id,
-			version,
-			data,
-			created_at
-		)
-		VALUES(?, ?, ?, ?)
-		`,
+		query,
 		record.ID,
-		1,
 		string(rawJSON),
-		now,
 	)
 
 	if err != nil {
 		return err
 	}
 
-	return tx.Commit()
-}
-
-func (s *SQLiteRecordService) getLatestVersion(
-	ctx context.Context,
-	recordID int,
-) (int, error) {
-
-	query := `
-	SELECT version
-	FROM record_versions
-	WHERE record_id = ?
-	ORDER BY version DESC
-	LIMIT 1
-	`
-
-	var version int
-
-	err := s.db.QueryRowContext(
-		ctx,
-		query,
-		recordID,
-	).Scan(&version)
-
-	if errors.Is(err, sql.ErrNoRows) {
-		return 0, ErrRecordDoesNotExist
-	}
-
-	if err != nil {
-		return 0, err
-	}
-
-	return version, nil
+	return s.createVersionSnapshot(ctx, record)
 }
 
 func (s *SQLiteRecordService) UpdateRecord(
@@ -220,38 +110,126 @@ func (s *SQLiteRecordService) UpdateRecord(
 		newRecord.Data[key] = *value
 	}
 
-	latestVersion, err := s.getLatestVersion(ctx, id)
-	if err != nil {
-		return entity.Record{}, err
-	}
-
 	rawJSON, err := json.Marshal(newRecord.Data)
 	if err != nil {
 		return entity.Record{}, err
 	}
 
+	query := `
+	UPDATE records
+	SET data = ?
+	WHERE id = ?
+	`
+
 	_, err = s.db.ExecContext(
 		ctx,
-		`
-		INSERT INTO record_versions(
-			record_id,
-			version,
-			data,
-			created_at
-		)
-		VALUES(?, ?, ?, ?)
-		`,
-		id,
-		latestVersion+1,
+		query,
 		string(rawJSON),
-		time.Now().UTC(),
+		id,
 	)
 
 	if err != nil {
 		return entity.Record{}, err
 	}
 
+	err = s.createVersionSnapshot(ctx, newRecord)
+	if err != nil {
+		return entity.Record{}, err
+	}
+
 	return newRecord, nil
+}
+
+func (s *SQLiteRecordService) createVersionSnapshot(
+	ctx context.Context,
+	record entity.Record,
+) error {
+
+	query := `
+	SELECT COALESCE(MAX(version), 0) + 1
+	FROM record_versions
+	WHERE record_id = ?
+	`
+
+	var nextVersion int
+
+	err := s.db.QueryRowContext(
+		ctx,
+		query,
+		record.ID,
+	).Scan(&nextVersion)
+
+	if err != nil {
+		return err
+	}
+
+	rawJSON, err := json.Marshal(record.Data)
+	if err != nil {
+		return err
+	}
+
+	insertQuery := `
+	INSERT INTO record_versions(
+		record_id,
+		version,
+		data,
+		created_at
+	)
+	VALUES(?, ?, ?, CURRENT_TIMESTAMP)
+	`
+
+	_, err = s.db.ExecContext(
+		ctx,
+		insertQuery,
+		record.ID,
+		nextVersion,
+		string(rawJSON),
+	)
+
+	return err
+}
+
+func (s *SQLiteRecordService) GetRecordVersion(
+	ctx context.Context,
+	id int,
+	version int,
+) (entity.Record, error) {
+
+	query := `
+	SELECT data
+	FROM record_versions
+	WHERE record_id = ?
+	AND version = ?
+	`
+
+	var rawJSON string
+
+	err := s.db.QueryRowContext(
+		ctx,
+		query,
+		id,
+		version,
+	).Scan(&rawJSON)
+
+	if err == sql.ErrNoRows {
+		return entity.Record{}, ErrRecordDoesNotExist
+	}
+
+	if err != nil {
+		return entity.Record{}, err
+	}
+
+	data := map[string]string{}
+
+	err = json.Unmarshal([]byte(rawJSON), &data)
+	if err != nil {
+		return entity.Record{}, err
+	}
+
+	return entity.Record{
+		ID:   id,
+		Data: data,
+	}, nil
 }
 
 func (s *SQLiteRecordService) ListRecordVersions(
@@ -263,7 +241,7 @@ func (s *SQLiteRecordService) ListRecordVersions(
 	SELECT version, data, created_at
 	FROM record_versions
 	WHERE record_id = ?
-	ORDER BY version ASC
+	ORDER BY created_at DESC
 	`
 
 	rows, err := s.db.QueryContext(
@@ -302,7 +280,6 @@ func (s *SQLiteRecordService) ListRecordVersions(
 			return nil, err
 		}
 
-		version.RecordID = id
 		version.Data = data
 
 		versions = append(versions, version)

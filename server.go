@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
+	"github.com/joho/godotenv"
 	"github.com/rainbowmga/timetravel/api"
 	"github.com/rainbowmga/timetravel/database"
 	svc "github.com/rainbowmga/timetravel/service"
@@ -21,6 +23,14 @@ func logError(err error) {
 }
 
 func main() {
+
+	err := godotenv.Load()
+	if err != nil {
+		log.Printf(".env not found")
+	}
+
+	geminiKey := os.Getenv("GEMINI_API_KEY")
+	log.Printf("Gemini key loaded: %v", geminiKey != "")
 	router := mux.NewRouter()
 
 	//service := service.NewInMemoryRecordService()
@@ -31,8 +41,8 @@ func main() {
 	}
 
 	service := svc.NewSQLiteRecordService(db)
-	api := api.NewAPI(&service)
-
+	gemini := svc.NewGeminiService(geminiKey)
+	api := api.NewAPI(&service, gemini)
 	apiRoute := router.PathPrefix("/api/v1").Subrouter()
 	apiV2Route := router.PathPrefix("/api/v2").Subrouter()
 	api.CreateRoutes(apiV2Route)

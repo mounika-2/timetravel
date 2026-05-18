@@ -11,6 +11,12 @@ var ErrRecordDoesNotExist = errors.New("record with that id does not exist")
 var ErrRecordIDInvalid = errors.New("record id must >= 0")
 var ErrRecordAlreadyExists = errors.New("record already exists")
 
+type RecordVersion struct {
+	Version   int               `json:"version"`
+	Data      map[string]string `json:"data"`
+	CreatedAt string            `json:"created_at"`
+}
+
 // Implements method to get, create, and update record data.
 type RecordService interface {
 
@@ -29,8 +35,11 @@ type RecordService interface {
 	UpdateRecord(ctx context.Context, id int, updates map[string]*string) (entity.Record, error)
 
 	// GetRecordVersion will retrieve a specific version of a record.
-	GetRecordVersion(ctx context.Context, id int, version int) (entity.RecordVersion, error)
-
+	GetRecordVersion(
+		ctx context.Context,
+		id int,
+		version int,
+	) (entity.Record, error)
 	// ListRecordVersions will retrieve all versions of a record.
 	ListRecordVersions(ctx context.Context, id int) ([]entity.RecordVersion, error)
 }
