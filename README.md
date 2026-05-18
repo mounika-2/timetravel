@@ -1,212 +1,434 @@
-# Rainbow - Backend Take-Home Assignment
+# TimeTravel Underwriting Platform
 
-Please create a private fork of this repo and complete the objectives.
-Once you are finished, send us an email with a link to your private repo.
+A temporal business underwriting platform built with:
 
+* Go backend
+* React frontend
+* SQLite persistence
+* Historical version reconstruction
+* Immutable audit snapshots
+* Dynamic underwriting records
+* Underwriting change analysis
 
-## To Create A Private Fork
+The system allows users to:
 
-1. Clone the repository to your local machine
-```bash
-git clone git@github.com:rainbowmga/timetravel.git
-cd timetravel
+* Load business underwriting records
+* View historical snapshots over time
+* Reconstruct prior business states
+* Edit historical versions
+* Create new immutable versions
+* Analyze operational and underwriting changes between versions
+
+---
+
+# Why This Project Exists
+
+Insurance underwriting systems often need:
+
+* historical auditing
+* temporal reconstruction
+* compliance tracking
+* operational change analysis
+* immutable record history
+
+Traditional CRUD systems overwrite prior state.
+
+This project demonstrates a temporal architecture where:
+
+* every update creates a historical snapshot
+* prior versions remain immutable
+* business state can be reconstructed at any point in time
+* underwriting changes can be analyzed over time
+
+---
+
+# Architecture
+
+## Backend
+
+* Language: Go
+* Router: Gorilla Mux
+* Database: SQLite
+* API Style: REST
+
+## Frontend
+
+* React
+* Dynamic underwriting form rendering
+* Timeline-based UI
+* Snapshot viewer
+* Historical analysis tools
+
+## Persistence Layer
+
+SQLite stores:
+
+* current business records
+* immutable historical snapshots
+
+---
+
+# Core Features
+
+## 1. Temporal Versioning
+
+Every record update creates a new immutable snapshot.
+
+Snapshots preserve:
+
+* business attributes
+* underwriting values
+* operational changes
+* timestamps
+
+Example:
+
+| Version | Employee Count | Payroll   |
+| ------- | -------------- | --------- |
+| v1      | 10             | 500,000   |
+| v2      | 15             | 750,000   |
+| v3      | 25             | 1,500,000 |
+
+Users can reconstruct historical business state at any time.
+
+---
+
+## 2. Historical Timeline
+
+The UI displays all historical versions sorted by date.
+
+Users can:
+
+* inspect historical snapshots
+* compare versions
+* edit historical state
+* create new versions from prior snapshots
+
+---
+
+## 3. Immutable Audit History
+
+Historical versions are never overwritten.
+
+Every update creates:
+
+* a new version
+* a new timestamped snapshot
+* preserved audit history
+
+This models real enterprise underwriting systems.
+
+---
+
+## 4. Dynamic Schema Support
+
+The frontend dynamically renders underwriting fields.
+
+This allows:
+
+* flexible underwriting data
+* evolving schemas
+* additional risk attributes without frontend rewrites
+
+Examples of supported fields:
+
+* employee_count
+* annual_payroll
+* hazardous_materials
+* delivery_services
+* overnight_baking
+* business_hours
+* general_liability_limit
+
+The system is no longer tied to a fixed schema.
+
+---
+
+## 5. Underwriting Change Analysis
+
+Users can analyze differences between two historical versions.
+
+The system detects:
+
+* changed fields
+* added fields
+* removed fields
+* operational risk changes
+
+Example analysis:
+
+* employee_count changed from 10 to 25
+* payroll exposure increased
+* hazardous materials added
+* delivery operations introduced
+
+The analyzer also produces underwriting-oriented commentary.
+
+---
+
+# API Endpoints
+
+## Load Current Record
+
+```http
+GET /api/v2/records/{id}
 ```
 
-2. Create a new **private** repository on your GitHub account
-- https://github.com/new
+---
 
-3. Add your new private repo as a remote:
-```bash
-git remote rename origin upstream
-git remote add origin https://github.com/YOUR_USERNAME/NEW_PRIVATE_REPO.git
+## Create or Update Record
+
+```http
+POST /api/v2/records/{id}
 ```
 
-4. Push the code to your new private repo:
-```bash
-git push -u origin master
+Example payload:
+
+```json
+{
+  "employee_count": "25",
+  "annual_payroll": "1500000",
+  "delivery_services": "yes"
+}
 ```
 
+---
 
-## To Run The Server
+## List Historical Versions
 
-1. Compile and run the Go application:
+```http
+GET /api/v2/records/{id}/versions
+```
+
+---
+
+## Load Specific Historical Snapshot
+
+```http
+GET /api/v2/records/{id}/versions/{version}
+```
+
+---
+
+## Analyze Changes Between Versions
+
+```http
+POST /api/v2/records/{id}/analyze
+```
+
+Request body:
+
+```json
+{
+  "from_version": 1,
+  "to_version": 5
+}
+```
+
+---
+
+# Database Design
+
+## records
+
+Stores latest/current business state.
+
+| Column     | Type     |
+| ---------- | -------- |
+| id         | INTEGER  |
+| data       | TEXT     |
+| created_at | DATETIME |
+
+---
+
+## record_versions
+
+Stores immutable historical snapshots.
+
+| Column     | Type     |
+| ---------- | -------- |
+| record_id  | INTEGER  |
+| version    | INTEGER  |
+| data       | TEXT     |
+| created_at | DATETIME |
+
+---
+
+# Frontend Panels
+
+The UI is organized into four main panels:
+
+## 1. Historical Timeline
+
+Displays chronological underwriting snapshots.
+
+---
+
+## 2. Snapshot Viewer
+
+Displays full historical underwriting record data.
+
+---
+
+## 3. Update Existing Record
+
+Allows editing a selected historical snapshot and creating a new immutable version.
+
+---
+
+## 4. Underwriting Analysis
+
+Analyzes operational and underwriting changes between versions.
+
+---
+
+# Backward Compatibility
+
+The system evolved from:
+
+* fixed underwriting schema
+* basic CRUD operations
+
+into:
+
+* dynamic underwriting records
+* temporal versioning
+* historical reconstruction
+
+Backward compatibility was maintained through:
+
+* API versioning
+* non-breaking route evolution
+* preserved REST structure
+
+---
+
+# Example Business Evolution
+
+## Acme Plumbing LLC
+
+Over time:
+
+* employee count increased
+* payroll exposure increased
+* business hours expanded
+* delivery operations introduced
+* hazardous materials added
+* liability limits increased
+
+The system captures each stage historically.
+
+---
+
+# Local Development
+
+## Backend
+
 ```bash
-cd timetravel
 go run .
 ```
 
-2. Test the server using the healthcheck endpoint:
+Server runs on:
+
+```text
+http://localhost:8000
+```
+
+---
+
+## Frontend
+
 ```bash
-curl -X POST http://localhost:8000/api/v1/health
+npm install
+npm run dev
 ```
 
-You should see the following response:
-```json
-{"ok":true}
+Frontend runs on:
+
+```text
+http://localhost:5173
 ```
 
+---
 
-## The Assignment
+# Database Reset
 
-A core part of any insurance platform is a reliable and auditable
-record-keeping system. It must store all relevant data used to underwrite
-policies. Policyholders periodically submit and update information about the
-risks they want covered, such as their desired liability limits or changes to
-their workforce. These changes can significantly affect the policy's risk
-profile and, consequently, the premium.
+Delete local SQLite database:
 
-The current codebase represents a very simplified version of this system, with:
-- `GET /api/v1/record/{id}` – retrieves a record (a simple JSON mapping of
-strings to strings)
-- `POST /api/v1/record/{id}` – creates or updates a record
-
-### The Problem
-
-Maintaining only the *current* state of each record is not enough. For
-compliance and proper risk assessment, we must also understand how that state
-*evolved*.
-
-Consider the following example. A business buys a policy in January. In March,
-they change their business hours, but they don't notify us until July. During
-that four-month gap, we are unknowingly covering a risk that has changed.
-Depending on the nature of the change, we may need to:
-- **Retroactively adjust the premium**
-- Or even **void the policy** if the change introduces unacceptable risk
-
-To resolve this, we need a versioned, historical view of the data:
-- What did we know and when?
-- When did the change actually occur?
-
-### Objective 1: Persist Data with SQLite
-
-Replace the in-memory storage backend with a persistent SQLite database. The
-goal is to ensure that all record data is retained even if the server is shut
-down and restarted.
-
-### Objective 2: Implement Time Travel Functionality
-
-Introduce a “time travel” feature that allows querying the state of any record
-at a specific point in time. This enables accurate reconstructions for
-compliance, audits, and risk recalculations.
-
-This objective is open-ended and may require significant changes across the
-codebase. You'll introduce **record versioning and history tracking**.
-
-Build out a new set of endpoints under `/api/v2` with the following
-functionality:
-- Retrieve records at specific versions (not just the latest)
-- Apply updates to the latest version while preserving history
-- List all available versions of a record
-- Ensure full backward compatibility: `/api/v1` endpoints should continue to
-work as-is, with no changes in behavior
-
-
-## Notes on the Assignment
-
-You are free to use any tools, libraries, or frameworks you prefer — even building
-the solution in a different programming language if desired.
-
-We expect you to work on this task as if it was a normal project at work. So please write
-your code in a way that fits your intuitive notion of operating within best practices.
-
-We recommend making separate commits for each objective to help illustrate how you approached
-and broke down the assignment.  Don't hesitate to commit work that you later revise or remove
-— it's valuable to see your process evolve over time.
-
-Parts of this assignment are left intentionally ambiguous. How you resolve these
-ambiguities will help us understand your decision-making process.
-
-However, if you do have questions, don't hesitate to reach out!
-
-### FAQ
-
-#### Can I use a different language?
-Yes! We've had successful submissions in Python, Java, and others. Just make sure the
-functionality replicates what's provided in the Go starter code.
-
-#### Did you really end up implementing something like this at Rainbow?
-Yes, but unfortunately it wasn't as simple as this in practice. For insurance a
-number of requirements force us to maintain historic records across many
-different object types. So in fact we implemented this across multiple different
-tables in our database. 
-
-
-## Reference -- The Current API
-
-The current API consists of just two endpoints:
-- `GET /api/v1/records/{id}`
-- `POST /api/v1/records/{id}`,
-
-All ids must be **positive integers**.
-
-### `GET /api/v1/records/{id}`
-
-Retrieves a record by its ID. If the record exists, the server returns it in
-JSON format. If the record does not exist, an error message is returned.
-
-✅ Successful Response Example
 ```bash
-> GET /api/v1/records/2323 HTTP/1.1
-
-< HTTP/1.1 200 OK
-< Content-Type: application/json; charset=utf-8
-
-{"id": 2323, "data": {"david": "hey", "davidx": "hey"}}
+rm records.db
 ```
 
-❌ Error Response Example
+Restart backend:
+
 ```bash
-> GET /api/v1/records/32 HTTP/1.1
-
-< HTTP/1.1 400 Bad Request
-< Content-Type: application/json; charset=utf-8
-
-{"error": "record of id 32 does not exist"}
+go run .
 ```
 
-### `POST /api/v1/records/{id}`
+Reseed data:
 
-Creates or updates a record at the specified ID.
-- If the record does not exist, it will be created.
-- If the record already exists, it will be updated.
-- Payload values must be a JSON object with string keys and values (or `null`).
-- Keys with `null` values will be deleted from the record.
-
-✅ Create a Record
 ```bash
-> POST /api/v1/records/1 HTTP/1.1
-> Content-Type: application/json
-
-{"hello": "world"}
-
-< HTTP/1.1 200 OK
-< Content-Type: application/json; charset=utf-8
-
-{"id": 1, "data": {"hello": "world"}}
+./seed.sh
 ```
 
-🔁 Update a Record
-```bash
-> POST /api/v1/records/1 HTTP/1.1
-> Content-Type: application/json
+---
 
-{"hello": "world 2", "status": "ok"}
+# Demo Workflow
 
-< HTTP/1.1 200 OK
-< Content-Type: application/json; charset=utf-8
+1. Load Record 1
+2. View historical timeline
+3. Select a historical snapshot
+4. Edit underwriting fields
+5. Create new immutable version
+6. Compare two versions
+7. Run underwriting analysis
 
-{"id": 1, "data": {"hello": "world 2", "status": "ok"}}
-```
+---
 
-❌ Delete a field from a record
-```bash
-> POST /api/v1/records/1 HTTP/1.1
-> Content-Type: application/json
+# Technical Concepts Demonstrated
 
-{"hello": null}
+* Temporal data modeling
+* Immutable audit systems
+* Historical reconstruction
+* REST API design
+* Dynamic schema rendering
+* Versioned persistence
+* SQLite integration
+* React state management
+* Backend/frontend integration
+* Underwriting risk analysis
 
-< HTTP/1.1 200 OK
-< Content-Type: application/json; charset=utf-8
+---
 
-{"id": 1, "data": {"status": "ok"}}
-```
+# Future Enhancements
+
+Potential future improvements:
+
+* Authentication
+* Multi-user access
+* Real AI/LLM integration
+* Diff visualizations
+* Advanced underwriting scoring
+* Role-based permissions
+* Search/filtering
+* Production database support
+* Cloud deployment
+* Event sourcing
+
+---
+
+# Project Status
+
+Current status:
+
+* Temporal versioning implemented
+* Historical reconstruction implemented
+* Immutable snapshots implemented
+* Dynamic underwriting schema implemented
+* Underwriting analysis implemented
+* React UI implemented
+* SQLite persistence implemented
+* Seed data implemented
+* API versioning implemented
+
+The platform now functions as a complete temporal underwriting prototype.
